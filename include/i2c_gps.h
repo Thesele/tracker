@@ -10,7 +10,8 @@
 // Max buffer sizes
 #define GPS_SENTENCE_MAX_LEN  128
 #define GPS_CMD_MAX_LEN       64
-#define GPS_READ_TIMEOUT_MS   500
+// #define GPS_READ_TIMEOUT_MS   500
+#define GPS_CHUNK_SIZE        64  // keep small to reduce padding problems
 
 // GPS device handle
 extern i2c_master_dev_handle_t gps_dev;

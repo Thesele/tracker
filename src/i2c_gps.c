@@ -78,10 +78,24 @@ return i2c_master_transmit(gps_dev, (const uint8_t*)cmd, len, pdMS_TO_TICKS(100)
 
 // -------------------- PMTK HELPERS --------------------
 // Update rate: interval in ms (1000 = 1Hz, 200 = 5Hz, 100 = 10Hz)
+void set_checksum(const char *s)
+{
+    char appnd[5] = {0};
+    if (!s || *s != '$') return;
+    const char *p = s + 1;
+    uint8_t cs = 0;
+    while (*p && *p != '*') {
+        cs ^= (uint8_t)(*p++);
+    }
+    snprintf(appnd, sizeof(appnd), "%02X\r\n", cs);
+    strcat((char *)s, appnd);
+    
+}
 esp_err_t gps_set_update_rate(uint32_t interval_ms)
 {
 char cmd[GPS_CMD_MAX_LEN];
-snprintf(cmd, sizeof(cmd), "$PMTK220,%u*1F\r\n", (unsigned int)interval_ms);
+snprintf(cmd, sizeof(cmd), "$PMTK220,%u*", (unsigned int)interval_ms);
+set_checksum(cmd);
 return gps_send_cmd(cmd);
 }
 

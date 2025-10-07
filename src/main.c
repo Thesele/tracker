@@ -3,6 +3,7 @@
 #include "freertos/task.h"
 #include "driver/i2c_master.h"
 #include "i2c_gps.h" //for the adafruit gps over i2c
+#include "gps_task.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #include "driver/uart.h"
@@ -22,37 +23,6 @@ extern gps_fix_t received_fix;
 #define I2C_MASTER_FREQ_HZ          100000     /*!< I2C master clock frequency */
 
 
-
-static void gps_task(void *arg)
-{
-    static const char *TAG = "GPS_TASK";
-    char sentence[GPS_SENTENCE_MAX_LEN] = {0};
-
-    ESP_LOGI(TAG, "GPS task started, waiting for fix...");
-
-    while (1) {
-        esp_err_t ret = gps_i2c_read_sentence(sentence, sizeof(sentence), GPS_READ_TIMEOUT_MS);
-        if (ret == ESP_OK) {
-            // Process the NMEA sentence (your parser handles this)
-            ESP_LOGI(TAG, "NMEA: %s", sentence);
-
-            // Example: check if GGA sentence has valid fix
-            if (nmea_parser_parse_sentence(sentence, &myfix) == ESP_OK) {
-                if (myfix.valid) {
-                    ESP_LOGI(TAG, "Got fix: Lat=%.6f, Lon=%.6f, Alt=%.2f, Sats=%d",
-                             myfix.lat, myfix.lon, myfix.alt, myfix.sats);
-                } else {
-                    ESP_LOGI(TAG, "No valid fix yet.");
-                }
-            }
-        } else if (ret != ESP_ERR_TIMEOUT) {
-            ESP_LOGW(TAG, "Error reading GPS: %s", esp_err_to_name(ret));
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(1000)); // small delay to avoid hammering I2C bus
-    }
-}
-
 void app_main() {
 //  initialize peripherals
 // Initialize I2C
@@ -60,7 +30,7 @@ void app_main() {
 // Configure GPS once at setup 
 
 
-    ESP_ERROR_CHECK(gps_set_update_rate(100)); // Set update rate to 1 second
+    ESP_ERROR_CHECK(gps_set_update_rate(3000)); // Set update rate to 1 second
     ESP_ERROR_CHECK(gps_enable_rmc_gga()); // Enable RMC and GGA sentences
     
     vTaskDelay(pdMS_TO_TICKS(4000)); // Wait for GPS to initialize
