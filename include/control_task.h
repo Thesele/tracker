@@ -38,6 +38,7 @@ esp_err_t control_start(void);
 
 // Helpers used by TCP task to modify state safely
 esp_err_t control_set_mode(track_mode_t mode);
+esp_err_t control_set_my_fix(const gps_fix_t *fix);          // sets my_fix (I2C GPS)
 esp_err_t control_set_manual_azel(double az_deg, double el_deg); // sets manual and switches mode to MANUAL
 esp_err_t control_set_target_fix(const gps_fix_t *fix);          // sets target (and mode stays unchanged)
 esp_err_t control_clear_target_fix(void);

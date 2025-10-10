@@ -191,6 +191,15 @@ esp_err_t control_set_target_fix(const gps_fix_t *fix)
     xSemaphoreGive(g_state_mux);
     return ESP_OK;
 }
+esp_err_t control_set_my_fix(const gps_fix_t *fix)
+{
+    if (!g_state_mux || !fix) return ESP_ERR_INVALID_ARG;
+    if (xSemaphoreTake(g_state_mux, pdMS_TO_TICKS(100)) != pdTRUE) return ESP_ERR_TIMEOUT;
+    memcpy(&g_state.my_fix, fix, sizeof(gps_fix_t));
+    // keep mode unchanged; if in GPS mode, control task will compute az/el
+    xSemaphoreGive(g_state_mux);
+    return ESP_OK;
+}
 
 esp_err_t control_clear_target_fix(void)
 {

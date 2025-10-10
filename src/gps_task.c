@@ -29,6 +29,7 @@ static void process_sentence(const char *sentence)
             ESP_LOGI(TAG, "GGA parsed successfully: NMEA %s", sentence);
             ESP_LOGI(TAG, "Got fix: Lat=%.6f, Lon=%.6f, Alt=%.2f, Sats=%d",
                      myfix.lat, myfix.lon, myfix.alt, myfix.sats);
+            control_set_my_fix(&myfix); // Update shared state with my location
             vTaskDelete(NULL); // Stop task after getting a valid fix
         } else {
             ESP_LOGW(TAG, "GGA parse failed or no fix yet");
