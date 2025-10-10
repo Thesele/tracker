@@ -9,12 +9,17 @@
 #include "driver/uart.h"
 #include "esp_log.h"
 #include "esp_err.h"
+#include "nvs_flash.h"
 
 #include "nmea_parser.h"
 #include "uart_driver.h"
+#include "wifi_commands.h" //for the wifi ap and tcp server
 
 extern gps_fix_t received_fix; 
  gps_fix_t myfix;
+ const char *device_id = "SKRIPSIE_TRACKER_001"; // set your device id here
+ float current_az = 0.0;
+ float current_el = 0.0;
 
 // i2c definitions
 #define I2C_MASTER_NUM              I2C_NUM_0   /*!< I2C port number for master dev */
@@ -24,6 +29,7 @@ extern gps_fix_t received_fix;
 
 
 void app_main() {
+
 //  initialize peripherals
 // Initialize I2C
     ESP_ERROR_CHECK(gps_i2c_init_full(I2C_MASTER_NUM, I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ ));
@@ -37,11 +43,16 @@ void app_main() {
     
 
 // Initialize UART
-   uart_driver_init();
+    uart_driver_init();
+   
+    ESP_ERROR_CHECK(control_init());
 
     //run tasks
-   uart_driver_start_rx_task();
-   xTaskCreate(gps_task, "gps_task", 4096, NULL, 5, NULL);
+    uart_driver_start_rx_task();
+    xTaskCreate(gps_task, "gps_task", 4096, NULL, 5, NULL);
+    wifi_ap_start("TrackerAP", "12345678"); //ssid and password  //initialize wifi ap and tcp server
+    ESP_ERROR_CHECK(control_start());
+
     
   
 }

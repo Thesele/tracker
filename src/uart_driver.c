@@ -3,7 +3,7 @@
 #include "nmea_parser.h"
 #include <string.h>
 
-gps_fix_t received_fix; // to hold the received GPS fix. this is defined in the uart driver.c
+gps_fix_t uart_fix; // to hold the received GPS fix. this is defined in the uart driver.c
 
 static const char *TAG = "UART_DRIVER";
 static QueueHandle_t uart_event_queue;
@@ -29,9 +29,9 @@ static void uart_rx_task(void *arg) {
                             // Process the received data starting with '$' ( the nmea sentence )
                             ESP_LOGI(TAG, "Processing NMEA SENTENCE");
 
-                            if (nmea_parser_parse_sentence(uartData, &received_fix) == ESP_OK) {
+                            if (nmea_parser_parse_sentence(uartData, &uart_fix) == ESP_OK) {
                                 ESP_LOGI("GPS", "Lat=%.6f, Lon=%.6f, Alt=%.2f, Fix=%d, Sats=%d",
-                               received_fix.lat,received_fix.lon,received_fix.alt,received_fix.fix_quality,received_fix.sats);
+                               uart_fix.lat,uart_fix.lon,uart_fix.alt,uart_fix.fix_quality,uart_fix.sats);
 
                             }
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "nmea_parser.h"
 #include "esp_err.h"
+#include "control_task.h"
 
 #define GPS_SENTENCE_MAX_LEN 128
 #define GPS_READ_TIMEOUT_MS 50
