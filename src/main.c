@@ -2,8 +2,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/i2c_master.h"
-#include "i2c_gps.h" //for the adafruit gps over i2c
-#include "gps_task.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #include "driver/uart.h"
@@ -11,9 +9,13 @@
 #include "esp_err.h"
 #include "nvs_flash.h"
 
+#include "i2c_gps.h" //for the adafruit gps over i2c
+#include "gps_task.h"
 #include "nmea_parser.h"
 #include "uart_driver.h"
 #include "wifi_commands.h" //for the wifi ap and tcp server
+#include "control_task.h" //for the control task
+#include "servo_control.h" //for the servo control task
 
 extern gps_fix_t received_fix; 
  gps_fix_t myfix;
@@ -35,7 +37,6 @@ void app_main() {
     ESP_ERROR_CHECK(gps_i2c_init_full(I2C_MASTER_NUM, I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ ));
 // Configure GPS once at setup 
 
-
     ESP_ERROR_CHECK(gps_set_update_rate(3000)); // Set update rate to 1 second
     ESP_ERROR_CHECK(gps_enable_rmc_gga()); // Enable RMC and GGA sentences
     
@@ -44,8 +45,29 @@ void app_main() {
 
 // Initialize UART
     uart_driver_init();
-   
+   // Initialize control task
     ESP_ERROR_CHECK(control_init());
+    // initilize servo control
+        servo_config_t cfg[SERVO_COUNT] = {
+        [SERVO_AZ] = {
+            .min_pulse_us = 500,
+            .neutral_pulse_us = 1500,
+            .max_pulse_us = 2500,
+            .min_deg = -135.0,
+            .max_deg = 135.0
+        },
+        [SERVO_EL] = {
+            .min_pulse_us = 500,
+            .neutral_pulse_us = 1500,
+            .max_pulse_us = 2500,
+            .min_deg = -90.0,
+            .max_deg = 90.0
+        }
+    };
+    servo_set_target_angle(SERVO_AZ, 0.0);
+    servo_set_target_angle(SERVO_EL, 0.0);
+
+
 
     //run tasks
     uart_driver_start_rx_task();
