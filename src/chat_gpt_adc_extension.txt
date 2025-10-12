@@ -1,0 +1,167 @@
+#ifndef SERVO_CONTROL_H
+#define SERVO_CONTROL_H
+
+#include "driver/ledc.h"
+#include "driver/adc.h"
+#include "esp_err.h"
+#include "esp_log.h"
+#include <stdbool.h>
+
+#define SERVO_COUNT 2
+#define SERVO_AZ 0
+#define SERVO_EL 1
+
+typedef struct {
+    uint32_t min_pulse_us;
+    uint32_t neutral_pulse_us;
+    uint32_t max_pulse_us;
+    float min_deg;
+    float max_deg;
+    gpio_num_t pwm_pin;
+    adc_channel_t fb_channel;   // ADC channel for feedback (if used)
+} servo_config_t;
+
+typedef struct {
+    servo_config_t cfg;
+    float current_angle;     // Last measured (feedback) angle
+    float target_angle;      // Desired angle
+    bool feedback_enabled;   // Whether feedback is being used
+    float fb_min_v;          // Calibration: ADC voltage at min angle
+    float fb_max_v;          // Calibration: ADC voltage at max angle
+} servo_state_t;
+
+esp_err_t servo_control_init(const servo_config_t *configs);
+esp_err_t servo_set_angle(int id, float angle_deg);
+float servo_get_feedback_angle(int id);
+void servo_enable_feedback(int id, bool enable);
+esp_err_t servo_calibrate_feedback(int id, float fb_min_v, float fb_max_v);
+esp_err_t servo_auto_calibrate(int id);   // NEW FUNCTION
+void servo_control_task(void *pvParameters);
+
+#endif // SERVO_CONTROL_H
+
+
+
+
+
+
+#include "servo_control.h"
+#include "esp_adc_cal.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <math.h>
+
+static const char *TAG = "SERVO_CTRL";
+static servo_state_t servos[SERVO_COUNT];
+static esp_adc_cal_characteristics_t adc_chars;
+
+// ==================== Initialization ====================
+esp_err_t servo_control_init(const servo_config_t *configs)
+{
+    ledc_timer_config_t timer_cfg = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .timer_num = LEDC_TIMER_0,
+        .duty_resolution = LEDC_TIMER_16_BIT,
+        .freq_hz = 50,  // 20 ms period
+        .clk_cfg = LEDC_AUTO_CLK
+    };
+    ESP_ERROR_CHECK(ledc_timer_config(&timer_cfg));
+
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        servos[i].cfg = configs[i];
+        servos[i].feedback_enabled = false;
+        servos[i].current_angle = 0;
+        servos[i].target_angle = 0;
+        servos[i].fb_min_v = 0;
+        servos[i].fb_max_v = 3.3; // default range before calibration
+
+        ledc_channel_config_t ch_cfg = {
+            .gpio_num = configs[i].pwm_pin,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
+            .channel = i,
+            .intr_type = LEDC_INTR_DISABLE,
+            .timer_sel = LEDC_TIMER_0,
+            .duty = 0,
+            .hpoint = 0
+        };
+        ESP_ERROR_CHECK(ledc_channel_config(&ch_cfg));
+    }
+
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(ADC1_CHANNEL_6, ADC_ATTEN_DB_11);
+    esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11,
+                             ADC_WIDTH_BIT_12, 1100, &adc_chars);
+
+    ESP_LOGI(TAG, "Servo control initialized");
+    return ESP_OK;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+AUTOCALIBRATION SEQUENCE
+
+esp_err_t servo_auto_calibrate(int id)
+{
+    if (id < 0 || id >= SERVO_COUNT)
+        return ESP_ERR_INVALID_ARG;
+
+    servo_state_t *s = &servos[id];
+    if (!s->feedback_enabled) {
+        ESP_LOGW(TAG, "Feedback not enabled for servo %d. Skipping calibration.", id);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Starting auto-calibration for servo %d...", id);
+
+    // Helper lambda to read averaged voltage
+    auto read_avg_voltage = [&](int samples) {
+        uint32_t sum = 0;
+        for (int i = 0; i < samples; i++) {
+            sum += adc1_get_raw(s->cfg.fb_channel);
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        float voltage = esp_adc_cal_raw_to_voltage(sum / samples, &adc_chars) / 1000.0f;
+        return voltage;
+    };
+
+    // Move to minimum position
+    servo_set_angle(id, s->cfg.min_deg);
+    vTaskDelay(pdMS_TO_TICKS(800));  // settle
+    float v_min = read_avg_voltage(20);
+
+    // Move to maximum position
+    servo_set_angle(id, s->cfg.max_deg);
+    vTaskDelay(pdMS_TO_TICKS(800));
+    float v_max = read_avg_voltage(20);
+
+    // Optional: sweep back to center
+    servo_set_angle(id, s->cfg.neutral_pulse_us);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Store calibration
+    s->fb_min_v = v_min;
+    s->fb_max_v = v_max;
+
+    ESP_LOGI(TAG, "Servo %d calibrated: min=%.2fV, max=%.2fV", id, v_min, v_max);
+    return ESP_OK;
+}
+
+
+
+
+
+AUTO-CALIBRATE AT STARTUP
+
+for (int i = 0; i < SERVO_COUNT; i++) {
+    servo_enable_feedback(i, true);
+    servo_auto_calibrate(i);
+}
