@@ -43,29 +43,41 @@ void app_main() {
     vTaskDelay(pdMS_TO_TICKS(4000)); // Wait for GPS to initialize
     
 
-// Initialize UART
+                  // Initialize UART
     uart_driver_init();
-   // Initialize control task
+
+                 // Initialize control task
     ESP_ERROR_CHECK(control_init());
-    // initilize servo control
-        servo_config_t cfg[SERVO_COUNT] = {
+
+                 // initilize servo control
+    servo_config_t cfg[SERVO_COUNT] = {
         [SERVO_AZ] = {
             .min_pulse_us = 500,
             .neutral_pulse_us = 1500,
             .max_pulse_us = 2500,
-            .min_deg = -135.0,
-            .max_deg = 135.0
+            .min_deg = -135.0f,
+            .max_deg = 135.0f,
+            .pwm_pin = GPIO_NUM_18,
+            .fb_channel = ADC_CHANNEL_6 // GPIO34
         },
         [SERVO_EL] = {
             .min_pulse_us = 500,
             .neutral_pulse_us = 1500,
             .max_pulse_us = 2500,
-            .min_deg = -90.0,
-            .max_deg = 90.0
+            .min_deg = -135.0f,
+            .max_deg = 135.0f,
+            .pwm_pin = GPIO_NUM_19,
+            .fb_channel = ADC_CHANNEL_7 // GPIO35
         }
     };
-    servo_set_target_angle(SERVO_AZ, 0.0);
-    servo_set_target_angle(SERVO_EL, 0.0);
+
+
+// adc_channel_t fb_channels[SERVO_COUNT] = { ADC_CHANNEL_6, ADC_CHANNEL_7 }; // GPIO34, GPIO35
+
+    servo_control_init(cfg);
+
+    servo_set_angle(SERVO_AZ, 0.0);
+    servo_set_angle(SERVO_EL, 0.0);
 
 
 

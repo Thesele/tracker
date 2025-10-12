@@ -9,6 +9,7 @@
 #include "freertos/semphr.h"
 #include "esp_log.h"
 #include "control_task.h"
+#include "servo_control.h"
 
 static const char *TAG = "CONTROL";
 
@@ -114,6 +115,11 @@ static void control_task_fn(void *arg)
             if (local.my_fix.valid && local.target_fix.valid) {
                 azel_t computed;
                 compute_azel_from_fix(&local.my_fix, &local.target_fix, &computed);
+
+                // Set servo angles (convert az to servo angle)
+                float az_angle = servo_Az_to_angle((float)computed.az);
+                servo_set_angle(SERVO_AZ, az_angle); // Azimuth servo
+                servo_set_angle(SERVO_EL, (float)computed.el); // Elevation servo
 
                 // update global current_azel
                 if (xSemaphoreTake(g_state_mux, pdMS_TO_TICKS(10)) == pdTRUE) {

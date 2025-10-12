@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include "nmea_parser.h"
 #include <string.h>
+#include "control_task.h" // to update myfix when a new fix is received over uart
 
 gps_fix_t uart_fix; // to hold the received GPS fix. this is defined in the uart driver.c
 
@@ -32,6 +33,8 @@ static void uart_rx_task(void *arg) {
                             if (nmea_parser_parse_sentence(uartData, &uart_fix) == ESP_OK) {
                                 ESP_LOGI("GPS", "Lat=%.6f, Lon=%.6f, Alt=%.2f, Fix=%d, Sats=%d",
                                uart_fix.lat,uart_fix.lon,uart_fix.alt,uart_fix.fix_quality,uart_fix.sats);
+
+                                 control_set_my_fix(&uart_fix); // Update shared state with my location
 
                             }
 
