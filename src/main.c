@@ -29,6 +29,10 @@ extern gps_fix_t received_fix;
 #define I2C_MASTER_SDA_IO           GPIO_NUM_21          /*!< gpio number for I2C*/
 #define I2C_MASTER_FREQ_HZ          100000     /*!< I2C master clock frequency */
 
+// SERVO PINS
+#define SERVO_AZ_PIN                GPIO_NUM_18
+#define SERVO_EL_PIN                GPIO_NUM_19
+
 
 void app_main() {
 
@@ -57,7 +61,7 @@ void app_main() {
             .max_pulse_us = 2500,
             .min_deg = -135.0f,
             .max_deg = 135.0f,
-            .pwm_pin = GPIO_NUM_18,
+            .pwm_pin = SERVO_AZ_PIN ,
             .fb_channel = ADC_CHANNEL_6 // GPIO34
         },
         [SERVO_EL] = {
@@ -66,7 +70,7 @@ void app_main() {
             .max_pulse_us = 2500,
             .min_deg = -135.0f,
             .max_deg = 135.0f,
-            .pwm_pin = GPIO_NUM_19,
+            .pwm_pin = SERVO_EL_PIN ,
             .fb_channel = ADC_CHANNEL_7 // GPIO35
         }
     };

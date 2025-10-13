@@ -33,8 +33,8 @@ static void uart_rx_task(void *arg) {
                             if (nmea_parser_parse_sentence(uartData, &uart_fix) == ESP_OK) {
                                 ESP_LOGI("GPS", "Lat=%.6f, Lon=%.6f, Alt=%.2f, Fix=%d, Sats=%d",
                                uart_fix.lat,uart_fix.lon,uart_fix.alt,uart_fix.fix_quality,uart_fix.sats);
-
-                                 control_set_my_fix(&uart_fix); // Update shared state with my location
+                                control_set_mode(TRACK_MODE_GPS);
+                                control_set_target_fix(&uart_fix); // Update shared state with target location
 
                             }
 

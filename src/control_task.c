@@ -132,9 +132,15 @@ static void control_task_fn(void *arg)
             // Ensure the current_azel equals manual_azel
             if (xSemaphoreTake(g_state_mux, pdMS_TO_TICKS(10)) == pdTRUE) {
                 g_state.current_azel = g_state.manual_azel;
+
                 // Clear target_fix to reflect manual control
                 g_state.target_fix.valid = false;
                 xSemaphoreGive(g_state_mux);
+                
+                // Set servo angles (convert az to servo angle)
+                float az_angle = servo_Az_to_angle((float)local.current_azel.az);
+                servo_set_angle(SERVO_AZ, az_angle); // Azimuth servo
+                servo_set_angle(SERVO_EL, (float)local.current_azel.el); // Elevation servo
             }
         }
 
@@ -195,6 +201,7 @@ esp_err_t control_set_target_fix(const gps_fix_t *fix)
     memcpy(&g_state.target_fix, fix, sizeof(gps_fix_t));
     // keep mode unchanged; if in GPS mode, control task will compute az/el
     xSemaphoreGive(g_state_mux);
+    ESP_LOGI("CONTROL","TARGET FIX SET: ");
     return ESP_OK;
 }
 esp_err_t control_set_my_fix(const gps_fix_t *fix)
