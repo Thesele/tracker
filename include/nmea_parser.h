@@ -85,6 +85,9 @@ esp_err_t nmea_parser_parse_sentence(const char *sentence, gps_fix_t *out_fix);
  */
 const gps_fix_t *nmea_parser_get_last_fix(void);
 
+/**return true after parsing custom sentence */
+bool parse_custom_gps_fix(const char *input, gps_fix_t *fix);
+
 #ifdef __cplusplus
 }
 #endif

@@ -506,3 +506,44 @@ esp_err_t nmea_parser_consume_buffer(const uint8_t *buf, size_t len)
     }
     return ESP_OK;
 }
+bool parse_custom_gps_fix(const char *input, gps_fix_t *fix) {
+    if (!input || !fix) return false;
+
+    // Check format: must start with '#' and end with '\n'
+    size_t len = strlen(input);
+    if (len < 5 || input[0] != '#' || input[len - 1] != '\n') {
+        return false;
+    }
+
+    // Copy input to a buffer we can modify
+    char buffer[128];
+    if (len >= sizeof(buffer)) return false; // avoid overflow
+    strncpy(buffer, input + 1, len - 2); // skip '#' and '\n'
+    buffer[len - 2] = '\0';
+
+    // Split into lat:lon:alt
+    char *lat_str = strtok(buffer, ":");
+    char *lon_str = strtok(NULL, ":");
+    char *alt_str = strtok(NULL, ":");
+
+    if (!lat_str || !lon_str || !alt_str) {
+        return false;
+    }
+
+    // Convert to numbers
+    fix->lat = atof(lat_str);
+    fix->lon = atof(lon_str);
+    fix->alt = atof(alt_str);
+
+    // Set defaults for unused fields
+    fix->fix_quality = -1;
+    fix->sats = -1;
+    fix->utc_time[0] = '\0';
+    strncpy(fix->src, "RAW", sizeof(fix->src) - 1);
+    fix->src[sizeof(fix->src) - 1] = '\0';
+
+    // Mark as valid
+    fix->valid = true;
+
+    return true;
+}

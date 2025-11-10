@@ -1,6 +1,10 @@
 // control_task.c
 // Implements the control task and thread-safe state manipulation.
 // Computes az/el from my_fix -> target_fix (ECEF conversion).
+//
+// UPDATED:
+// - Includes new imu_valid, quat, euler, and heading fields in g_state
+// - Adds control_set_imu_data() to update these fields thread-safely
 
 #include <math.h>
 #include <string.h>
@@ -9,7 +13,7 @@
 #include "freertos/semphr.h"
 #include "esp_log.h"
 #include "control_task.h"
-#include "servo_control.h"
+#include "servo_control.h" // Assumed to exist
 
 static const char *TAG = "CONTROL";
 
@@ -18,8 +22,8 @@ static SemaphoreHandle_t g_state_mux = NULL;
 static TaskHandle_t g_control_task_handle = NULL;
 
 // Utility: degrees <-> radians
-static inline double deg2rad(double d){ return d * M_PI / 180.0; }
-static inline double rad2deg(double r){ return r * 180.0 / M_PI; }
+// static inline double deg2rad(double d){ return d * M_PI / 180.0; } // MOVED to control_task.h
+// static inline double rad2deg(double r){ return r * 180.0 / M_PI; } // MOVED to control_task.h
 
 // ECEF conversion (WGS84)
 static void geodetic_to_ecef(double lat_deg, double lon_deg, double alt_m,
@@ -39,8 +43,6 @@ static void geodetic_to_ecef(double lat_deg, double lon_deg, double alt_m,
 }
 
 // Compute azimuth and elevation from observer (myfix) to target
-// Azimuth: degrees from north (0° = north) clockwise toward east
-// Elevation: degrees above horizon
 static void  compute_azel_from_fix(const gps_fix_t *myf, const gps_fix_t *tgt, azel_t *out)
 {
     // Convert to ECEF
@@ -88,12 +90,13 @@ esp_err_t control_init(void)
     g_state.current_azel.el = 0.0;
     g_state.manual_azel.az = 0.0;
     g_state.manual_azel.el = 0.0;
+    g_state.imu_valid = false; // NEW
     return ESP_OK;
 }
 
 static void control_task_fn(void *arg)
 {
-    const TickType_t delay = pdMS_TO_TICKS(100); // 10 Hz control loop
+    const TickType_t delay = pdMS_TO_TICKS(50); // 20 Hz control loop
     tracker_state_t local;
 
     ESP_LOGI(TAG, "Control task started");
@@ -117,7 +120,7 @@ static void control_task_fn(void *arg)
                 compute_azel_from_fix(&local.my_fix, &local.target_fix, &computed);
 
                 // Set servo angles (convert az to servo angle)
-                float az_angle = servo_Az_to_angle((float)computed.az);
+                float az_angle = servo_Az_to_angle((float)computed.az); // Assumed
                 servo_set_angle(SERVO_AZ, az_angle); // Azimuth servo
                 servo_set_angle(SERVO_EL, (float)computed.el); // Elevation servo
 
@@ -138,7 +141,7 @@ static void control_task_fn(void *arg)
                 xSemaphoreGive(g_state_mux);
                 
                 // Set servo angles (convert az to servo angle)
-                float az_angle = servo_Az_to_angle((float)local.current_azel.az);
+                float az_angle = servo_Az_to_angle((float)local.current_azel.az); // Assumed
                 servo_set_angle(SERVO_AZ, az_angle); // Azimuth servo
                 servo_set_angle(SERVO_EL, (float)local.current_azel.el); // Elevation servo
             }
@@ -199,9 +202,8 @@ esp_err_t control_set_target_fix(const gps_fix_t *fix)
     if (!g_state_mux || !fix) return ESP_ERR_INVALID_ARG;
     if (xSemaphoreTake(g_state_mux, pdMS_TO_TICKS(100)) != pdTRUE) return ESP_ERR_TIMEOUT;
     memcpy(&g_state.target_fix, fix, sizeof(gps_fix_t));
-    // keep mode unchanged; if in GPS mode, control task will compute az/el
     xSemaphoreGive(g_state_mux);
-    ESP_LOGI("CONTROL","TARGET FIX SET: ");
+    ESP_LOGI(TAG,"TARGET FIX SET");
     return ESP_OK;
 }
 esp_err_t control_set_my_fix(const gps_fix_t *fix)
@@ -209,10 +211,28 @@ esp_err_t control_set_my_fix(const gps_fix_t *fix)
     if (!g_state_mux || !fix) return ESP_ERR_INVALID_ARG;
     if (xSemaphoreTake(g_state_mux, pdMS_TO_TICKS(100)) != pdTRUE) return ESP_ERR_TIMEOUT;
     memcpy(&g_state.my_fix, fix, sizeof(gps_fix_t));
-    // keep mode unchanged; if in GPS mode, control task will compute az/el
     xSemaphoreGive(g_state_mux);
     return ESP_OK;
 }
+
+/**
+ * @brief NEW: Set IMU data (called by imu_task)
+ * Safely updates the global state with the latest IMU data.
+ */
+esp_err_t control_set_imu_data(const quat_t *q, const euler_t *e, double heading)
+{
+    if (!g_state_mux || !e) return ESP_ERR_INVALID_ARG;
+    if (xSemaphoreTake(g_state_mux, pdMS_TO_TICKS(100)) != pdTRUE) return ESP_ERR_TIMEOUT;
+    
+    g_state.imu_valid = true;
+    if(q) memcpy(&g_state.quat, q, sizeof(quat_t));
+    memcpy(&g_state.euler, e, sizeof(euler_t));
+    g_state.heading = heading;
+
+    xSemaphoreGive(g_state_mux);
+    return ESP_OK;
+}
+
 
 esp_err_t control_clear_target_fix(void)
 {
@@ -238,3 +258,5 @@ esp_err_t control_compute_azel(const gps_fix_t *myfix, const gps_fix_t *target, 
     compute_azel_from_fix(myfix, target, out);
     return ESP_OK;
 }
+
+

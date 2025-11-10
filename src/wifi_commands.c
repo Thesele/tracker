@@ -1,16 +1,8 @@
-/* esp32_wifi_commands.c (UPDATED)
+/* esp32_wifi_commands.c
  *
- * Integrates with control_task.h to implement:
- *  - SET_MODE (GPS or MANUAL)
- *  - SET_AZ_EL (switches to MANUAL)
- *  - SET_TARGET (lat,lon,alt) (keeps/uses current mode)
- *  - GET_STATUS
- *
- * Replies with JSON ACKs and sends periodic status JSON (one line per message).
- *
- * NOTE:
- *  - This file assumes control_task.{h,c} are compiled and linked.
- *  - Replace previous file with this version or merge carefully.
+ * UPDATED:
+ * - Adds new "imu_data" object to the periodic status JSON.
+ * - This object contains heading, roll, pitch, and yaw.
  */
 
 #include <stdio.h>
@@ -31,20 +23,17 @@
 
 #include "cJSON.h"
 
-#include "control_task.h" // new control API
+#include "control_task.h" // Use new header
 
 #define TAG "WIFI_AP_TCP"
 
 #define SERVER_PORT 5000
 #define SERVER_BACKLOG 1
 #define RECV_BUF_SZ 512
-#define STATUS_INTERVAL_MS 1000
+#define STATUS_INTERVAL_MS 500
 
-/* Externals: these mirror what's inside control state; prefer control_get_state */
-extern const char *device_id;
-
-// start AP and server
-esp_err_t wifi_ap_start(const char *ssid, const char *password);
+/* Externals */
+extern const char *device_id; // Assuming this is defined in main
 
 // helper prototypes
 static void tcp_server_task(void *arg);
@@ -126,6 +115,16 @@ static void send_status_json(int client_sock)
     cJSON_AddNumberToObject(j_azel, "az", st.current_azel.az);
     cJSON_AddNumberToObject(j_azel, "el", st.current_azel.el);
     cJSON_AddItemToObject(root, "azel", j_azel);
+
+    // --- NEW IMU DATA ---
+    cJSON *j_imu = cJSON_CreateObject();
+    cJSON_AddBoolToObject(j_imu, "valid", st.imu_valid);
+    cJSON_AddNumberToObject(j_imu, "heading", st.heading);
+    cJSON_AddNumberToObject(j_imu, "roll", st.euler.roll);
+    cJSON_AddNumberToObject(j_imu, "pitch", st.euler.pitch);
+    cJSON_AddNumberToObject(j_imu, "yaw", st.euler.yaw);
+    cJSON_AddItemToObject(root, "imu_data", j_imu);
+    // --- END NEW ---
 
     cJSON_AddStringToObject(root, "mode", (st.mode == TRACK_MODE_MANUAL) ? "MANUAL" : "GPS");
     cJSON_AddNumberToObject(root, "uptime_s", xTaskGetTickCount() / configTICK_RATE_HZ);

@@ -4,17 +4,33 @@
 #include "driver/uart.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "esp_err.h"
+#include "nmea_parser.h"
 
-#define UART_PORT_NUM      UART_NUM_0  //  this is for testing.... GO BACK TO UART1 BEFORE TESTING
-#define UART_BAUD_RATE     115200
-#define UART_TX_PIN        17
-#define UART_RX_PIN        16
-#define UART_BUF_SIZE      (1024)
-#define BAUD_RATE         115200
+// ========================= CONFIGURATION =========================
 
-// Public function prototypes
+// Default baud rate for both UARTs
+#define UART_BAUD_RATE       115200
+#define UART_BUF_SIZE        (1024)
+
+// UART0 (Testing Interface)
+#define UART0_TX_PIN         (GPIO_NUM_1)   // Default TX0
+#define UART0_RX_PIN         (GPIO_NUM_3)   // Default RX0
+
+// UART1 (Field Interface)
+#define UART1_TX_PIN         (GPIO_NUM_17)
+#define UART1_RX_PIN         (GPIO_NUM_16)
+
+// ========================= GLOBAL FIX VARIABLES =========================
+extern gps_fix_t uart_fix_0;  // Data received over UART0 (testing)
+extern gps_fix_t uart_fix_1;  // Data received over UART1 (field use)
+
+// ========================= FUNCTION PROTOTYPES =========================
+
+// Initialize both UART0 and UART1, spawn RX tasks for each
 esp_err_t uart_driver_init(void);
-esp_err_t uart_driver_send(const char *data);
-void uart_driver_start_rx_task(void);
+
+// Send data through a specified UART port (UART_NUM_0 or UART_NUM_1)
+esp_err_t uart_driver_send(uart_port_t port, const char *data);
 
 #endif // UART_DRIVER_H

@@ -51,7 +51,7 @@ esp_err_t servo_control_init(const servo_config_t *configs)
 float servo_Az_to_angle(float az){
     float wrapped = fmodf(az, 360.0f);  // Ensure az is within 0–360
     if (wrapped > 180.0f)
-        return wrapped - 360.0f;        // Map to negative range
+        return 360.0f - wrapped;        // Map to positivetive range
     else
         return -wrapped;                // Clockwise is negative
 }

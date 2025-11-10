@@ -11,8 +11,10 @@
 
 #include "i2c_gps.h" //for the adafruit gps over i2c
 #include "gps_task.h"
+#include "uart_gps.h"
 #include "nmea_parser.h"
-#include "uart_driver.h"
+#include "uart_driver.h" // my uart driver for nmea sentence parsing
+#include "imu_task.h"
 #include "wifi_commands.h" //for the wifi ap and tcp server
 #include "control_task.h" //for the control task
 #include "servo_control.h" //for the servo control task
@@ -24,10 +26,10 @@ extern gps_fix_t received_fix;
  float current_el = 0.0;
 
 // i2c definitions
-#define I2C_MASTER_NUM              I2C_NUM_0   /*!< I2C port number for master dev */
-#define I2C_MASTER_SCL_IO           GPIO_NUM_22          /*!< gpio number for I2C master clock */
-#define I2C_MASTER_SDA_IO           GPIO_NUM_21          /*!< gpio number for I2C*/
-#define I2C_MASTER_FREQ_HZ          100000     /*!< I2C master clock frequency */
+// #define I2C_MASTER_NUM              I2C_NUM_0   /*!< I2C port number for master dev */
+// #define I2C_MASTER_SCL_IO           GPIO_NUM_22          /*!< gpio number for I2C master clock */
+// #define I2C_MASTER_SDA_IO           GPIO_NUM_21          /*!< gpio number for I2C*/
+// #define I2C_MASTER_FREQ_HZ          100000     /*!< I2C master clock frequency */
 
 // SERVO PINS
 #define SERVO_AZ_PIN                GPIO_NUM_18
@@ -35,20 +37,17 @@ extern gps_fix_t received_fix;
 
 
 void app_main() {
-
-//  initialize peripherals
-// Initialize I2C
-    ESP_ERROR_CHECK(gps_i2c_init_full(I2C_MASTER_NUM, I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ ));
-// Configure GPS once at setup 
-
-    ESP_ERROR_CHECK(gps_set_update_rate(3000)); // Set update rate to 1 second
-    ESP_ERROR_CHECK(gps_enable_rmc_gga()); // Enable RMC and GGA sentences
-    
-    vTaskDelay(pdMS_TO_TICKS(4000)); // Wait for GPS to initialize
-    
-
+/*
+ ***************************************************************************************                                    
+                                     initialize peripherals
+****************************************************************************************                                     
+                                     */
+                          
                   // Initialize UART
-    uart_driver_init();
+    uart_driver_init(); //modified to init 3 uarts, including one for gps... I think my i2c line is messed up( n recent overvoltage)
+   
+                       // Initialize IMU
+    imu_task_start();
 
                  // Initialize control task
     ESP_ERROR_CHECK(control_init());
@@ -74,7 +73,9 @@ void app_main() {
             .fb_channel = ADC_CHANNEL_7 // GPIO35
         }
     };
-
+    gps_fix_t pseudo_gps_fix ={.lat = -33.928,.lon = 18.86,.alt =130,.valid = 1,}; //dummy gps
+    control_set_my_fix(&pseudo_gps_fix); //set my fix to cape town for initial testing
+    
 
 // adc_channel_t fb_channels[SERVO_COUNT] = { ADC_CHANNEL_6, ADC_CHANNEL_7 }; // GPIO34, GPIO35
 
@@ -85,10 +86,8 @@ void app_main() {
 
 
 
-    //run tasks
-    uart_driver_start_rx_task();
-    xTaskCreate(gps_task, "gps_task", 4096, NULL, 5, NULL);
-    wifi_ap_start("TrackerAP", "12345678"); //ssid and password  //initialize wifi ap and tcp server
+    //run wifi task
+    wifi_ap_start("TrackerAP", "12345678"); //ssid and password  //initializes wifi ap and tcp server
     ESP_ERROR_CHECK(control_start());
 
     
